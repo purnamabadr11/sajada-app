@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sajada - Jadwal Sholat Bekasi</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #f0fdf4 0%, #e6f4ea 100%); }
+        .sholat-card.active { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; transform: scale(1.02); }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 md:p-10">
+
+    <div class="w-full max-w-6xl bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 flex flex-col lg:flex-row">
+        <div class="w-full lg:w-5/12 p-8 bg-gradient-to-br from-emerald-800 to-teal-950 text-white flex flex-col justify-between min-h-[300px] lg:min-h-[500px]">
+            <div>
+                <h1 class="text-xs uppercase tracking-widest text-emerald-300 font-semibold flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4"></i> Kota Bekasi</h1>
+                <p id="current-date" class="text-sm opacity-80 mt-1">-</p>
+            </div>
+            <div class="text-center my-auto">
+                <p class="text-sm opacity-75">Menuju waktu</p>
+                <h2 id="next-sholat-name" class="text-4xl font-bold mt-2 text-emerald-100">-</h2>
+                <div class="inline-block mt-4 bg-emerald-500/30 px-6 py-2 rounded-2xl"><p id="countdown" class="text-xl font-bold tabular-nums">-:--:--</p></div>
+            </div>
+            <div class="text-xs opacity-50">*Running text atau pengumuman admin akan muncul di sini*</div>
+        </div>
+
+        <div class="w-full lg:w-7/12 p-6 lg:p-10 flex flex-col justify-between bg-white/40">
+            <div id="jadwal-container" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+            <div class="mt-6 bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-emerald-800 text-sm font-medium overflow-hidden">
+                <marquee scrollamount="4" id="running-text">Selamat Datang di Aplikasi Sajada - Jadwal Sholat Kota Bekasi</marquee>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        const jadwalBekasi = [
+            { nama: 'Subuh', waktu: '04:43', icon: 'sunrise' },
+            { nama: 'Terbit', waktu: '06:01', icon: 'sun-dim' },
+            { nama: 'Dzuhur', waktu: '11:59', icon: 'sun' },
+            { nama: 'Ashar', waktu: '15:21', icon: 'cloud-sun' },
+            { nama: 'Maghrib', waktu: '17:54', icon: 'sunset' },
+            { nama: 'Isya', waktu: '19:08', icon: 'moon' }
+        ];
+
+        function init() {
+            const container = document.getElementById('jadwal-container');
+            container.innerHTML = '';
+            document.getElementById('current-date').innerText = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            jadwalBekasi.forEach(sholat => {
+                const card = document.createElement('div');
+                card.id = `sholat-${sholat.nama.toLowerCase()}`;
+                card.className = "sholat-card bg-white p-4 rounded-2xl flex justify-between items-center border border-gray-100 shadow-sm";
+                card.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="p-3 bg-gray-50 rounded-xl text-gray-500 icon-box"><i data-lucide="${sholat.icon}" class="w-5 h-5"></i></div>
+                        <span class="font-bold text-gray-700 name-box">${sholat.nama}</span>
+                    </div>
+                    <span class="font-extrabold text-lg text-gray-800 time-box">${sholat.waktu}</span>
+                `;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+            setInterval(updateTracker, 1000);
+        }
+
+        function updateTracker() {
+            const sekarang = new Date();
+            const totalMenit = sekarang.getHours() * 60 + sekarang.getMinutes();
+            let next = jadwalBekasi[0];
+            let minDiff = Infinity;
+            let active = jadwalBekasi[0];
+
+            jadwalBekasi.forEach(s => {
+                if (s.nama === 'Terbit') return;
+                const [h, m] = s.waktu.split(':').map(Number);
+                let diff = (h * 60 + m) - totalMenit;
+                if (diff <= 0) diff += 24 * 60;
+                if (diff < minDiff) { minDiff = diff; next = s; }
+            });
+
+            for (let i = jadwalBekasi.length - 1; i >= 0; i--) {
+                if (jadwalBekasi[i].nama === 'Terbit') continue;
+                const [h, m] = jadwalBekasi[i].waktu.split(':').map(Number);
+                if (totalMenit >= (h * 60 + m)) { active = jadwalBekasi[i]; break; }
+            }
+
+            document.querySelectorAll('.sholat-card').forEach(c => c.classList.remove('active'));
+            document.getElementById(`sholat-${active.nama.toLowerCase()}`)?.classList.add('active');
+
+            const [nh, nm] = next.waktu.split(':').map(Number);
+            const target = new Date(sekarang); target.setHours(nh, nm, 0);
+            if (target < sekarang) target.setDate(target.getDate() + 1);
+            const diffMs = target - sekarang;
+            
+            const hrs = String(Math.floor(diffMs / 3600000)).padStart(2, '0');
+            const mins = String(Math.floor((diffMs % 3600000) / 60000)).padStart(2, '0');
+            const secs = String(Math.floor((diffMs % 60000) / 1000)).padStart(2, '0');
+
+            document.getElementById('next-sholat-name').innerText = next.nama;
+            document.getElementById('countdown').innerText = `${hrs}:${mins}:${secs}`;
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
