@@ -7,15 +7,22 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #f0fdf4 0%, #e6f4ea 100%); }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.5s ease; }
+        .theme-emerald { background: linear-gradient(135deg, #f0fdf4 0%, #e6f4ea 100%); }
+        .theme-ocean { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); }
+        .theme-dark { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; }
+        
         .sholat-card.active { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; transform: scale(1.02); }
+        .theme-dark .sholat-card { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+        .theme-dark .sholat-card .name-box, .theme-dark .sholat-card .time-box { color: white; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 md:p-10">
+<body id="main-body" class="theme-emerald min-h-screen flex items-center justify-center p-4 md:p-10">
 
     <div class="w-full max-w-6xl bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 flex flex-col lg:flex-row">
-        <div class="w-full lg:w-5/12 p-8 bg-gradient-to-br from-emerald-800 to-teal-950 text-white flex flex-col justify-between min-h-[300px] lg:min-h-[500px]">
+        <div id="left-panel" class="w-full lg:w-5/12 p-8 bg-gradient-to-br from-emerald-800 to-teal-950 text-white flex flex-col justify-between min-h-[300px] lg:min-h-[500px]">
             <div>
                 <h1 class="text-xs uppercase tracking-widest text-emerald-300 font-semibold flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4"></i> Kota Bekasi</h1>
                 <p id="current-date" class="text-sm opacity-80 mt-1">-</p>
@@ -25,18 +32,23 @@
                 <h2 id="next-sholat-name" class="text-4xl font-bold mt-2 text-emerald-100">-</h2>
                 <div class="inline-block mt-4 bg-emerald-500/30 px-6 py-2 rounded-2xl"><p id="countdown" class="text-xl font-bold tabular-nums">-:--:--</p></div>
             </div>
-            <div class="text-xs opacity-50">*Running text atau pengumuman admin akan muncul di sini*</div>
+            <div class="text-xs opacity-50">*Running text otomatis sinkron dengan Supabase Cloud*</div>
         </div>
 
         <div class="w-full lg:w-7/12 p-6 lg:p-10 flex flex-col justify-between bg-white/40">
             <div id="jadwal-container" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
             <div class="mt-6 bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-emerald-800 text-sm font-medium overflow-hidden">
-                <marquee scrollamount="4" id="running-text">Selamat Datang di Aplikasi Sajada - Jadwal Sholat Kota Bekasi</marquee>
+                <marquee scrollamount="4" id="running-text">Loading pengumuman masjid...</marquee>
             </div>
         </div>
     </div>
 
     <script>
+        // Konfigurasi Supabase Kamu
+        const SUPABASE_URL = "https://hsihurqwnptlqmttalxf.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_kS-uonMFNkpMWrANseR9rA_JLSf9ET7";
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         lucide.createIcons();
         const jadwalBekasi = [
             { nama: 'Subuh', waktu: '04:43', icon: 'sunrise' },
@@ -46,6 +58,37 @@
             { nama: 'Maghrib', waktu: '17:54', icon: 'sunset' },
             { nama: 'Isya', waktu: '19:08', icon: 'moon' }
         ];
+
+        async function ambilDataSupabase() {
+            let { data, error } = await supabase.from('sajada_config').select('*').eq('id', 1).single();
+            if (data) {
+                // Update running text
+                document.getElementById('running-text').innerText = data.running_text;
+                
+                // Update tema warna tampilan
+                const body = document.getElementById('main-body');
+                body.className = `min-h-screen flex items-center justify-center p-4 md:p-10 theme-${data.theme}`;
+                
+                const panel = document.getElementById('left-panel');
+                if (data.theme === 'dark') {
+                    panel.className = "w-full lg:w-5/12 p-8 bg-gradient-to-br from-slate-800 to-slate-950 text-white flex flex-col justify-between min-h-[300px] lg:min-h-[500px]";
+                } else if(data.theme === 'ocean') {
+                    panel.className = "w-full lg:w-5/12 p-8 bg-gradient-to-br from-sky-800 to-blue-950 text-white flex flex-col justify-between min-h-[300px] lg:min-h-[500px]";
+                } else {
+                    panel.className = "w-full lg:w-5/12 p-8 bg-gradient-to-br from-emerald-800 to-teal-950 text-white flex flex-col justify-between min-h-[300px] lg:min-h-[500px]";
+                }
+            }
+        }
+
+        function listenPerubahanRealtime() {
+            supabase.channel('custom-all-channel')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sajada_config' }, (payload) => {
+                // Begitu ada update di HP admin, langsung ganti di TV seketika!
+                document.getElementById('running-text').innerText = payload.new.running_text;
+                document.getElementById('main-body').className = `min-h-screen flex items-center justify-center p-4 md:p-10 theme-${payload.new.theme}`;
+            })
+            .subscribe();
+        }
 
         function init() {
             const container = document.getElementById('jadwal-container');
@@ -67,6 +110,10 @@
             });
             lucide.createIcons();
             setInterval(updateTracker, 1000);
+            
+            // Jalankan fungsi koneksi Supabase
+            ambilDataSupabase();
+            listenPerubahanRealtime();
         }
 
         function updateTracker() {
